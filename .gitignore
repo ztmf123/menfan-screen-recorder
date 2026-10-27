@@ -1,0 +1,17 @@
+.tools/
+reference/
+**/bin/
+**/obj/
+.vs/
+artifacts/
+TestResults/
+*.user
+*.ffproj
+*.mp4
+*.mkv
+*.wav
+# Retired design drafts stay local; publish only the selected v3 branding.
+src/Menfan.App/Assets/menfan-icon-v1.*
+src/Menfan.App/Assets/menfan-icon-v2.*
+docs/ICON_DESIGN_V1.md
+docs/ICON_DESIGN_V2.md

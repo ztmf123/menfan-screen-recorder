@@ -1,0 +1,49 @@
+<Window x:Class="Menfan.App.MainWindow" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="clr-namespace:Menfan.App"
+ Style="{StaticResource {x:Type Window}}" Title="Menfan Screen Recorder" FontFamily="Microsoft YaHei UI" FontSize="16" FontWeight="Normal" Width="1440" Height="920" MinWidth="1100" MinHeight="740" WindowStartupLocation="CenterScreen" Closing="OnClosing" PreviewKeyDown="Editor_KeyDown">
+ <Grid>
+ <Grid x:Name="EditorLayout" Margin="18">
+  <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="320"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+  <Grid Margin="0,0,0,12">
+   <Grid.ColumnDefinitions><ColumnDefinition Width="220"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+   <StackPanel Orientation="Horizontal" VerticalAlignment="Top"><Button Content="←" ToolTip="返回录制工具栏" Click="Back_Click" Background="Transparent" Padding="10,6"/><StackPanel><TextBlock Text="Menfan" FontSize="19" FontWeight="Normal"/><TextBlock x:Name="ProjectTitle" Text="屏幕录制与轻量剪辑" FontSize="14" MaxWidth="170" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource TextBrush}"/></StackPanel></StackPanel>
+   <WrapPanel Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Top"><Button Content="导入" Click="Import_Click"/><Button Content="打开项目" Click="Open_Click"/><Button Content="保存项目" Click="Save_Click"/><Button Content="↶" ToolTip="撤销 Ctrl+Z" Click="Undo_Click"/><Button Content="↷" ToolTip="重做 Ctrl+Y" Click="Redo_Click"/><Button Content="场景预设 ▾" Click="Presets_Click"/><Button Content="设置" Click="Settings_Click"/><Button x:Name="EditorFullscreenButton" Content="全屏剪辑 F11" Click="EditorFullscreen_Click"/><Button x:Name="ExportButton" Content="导出 ↗" Background="{DynamicResource HoverBrush}" Click="Export_Click"/></WrapPanel>
+  </Grid>
+  <Grid Grid.Row="1">
+   <Grid.ColumnDefinitions><ColumnDefinition Width="92"/><ColumnDefinition Width="*"/><ColumnDefinition Width="312"/></Grid.ColumnDefinitions>
+   <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"><StackPanel VerticalAlignment="Center" Margin="0,0,12,0">
+    <Button Content="▣&#10;画面" Tag="画面" Click="Module_Click" Padding="8,8" Margin="0,3"/><Button Content="↗&#10;开场" Tag="开场" Click="Module_Click" Padding="8,8" Margin="0,3"/><Button Content="◇&#10;运镜" Tag="运镜" Click="Module_Click" Padding="8,8" Margin="0,3"/><Button Content="↖&#10;光标" Tag="光标" Click="Module_Click" Padding="8,8" Margin="0,3"/><Button Content="▧&#10;摄像头" Tag="摄像头" Click="Module_Click" Padding="8,8" Margin="0,3"/><Button Content="♫&#10;声音" Tag="声音" Click="Module_Click" Padding="8,8" Margin="0,3"/>
+   </StackPanel></ScrollViewer>
+   <Grid Grid.Column="1" Margin="0,0,16,0">
+    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center"><ComboBox x:Name="AspectPicker" Width="110" Margin="0,0,6,6" SelectedIndex="0" SelectionChanged="Aspect_Changed"><ComboBoxItem Content="原比例" Tag="Source"/><ComboBoxItem Content="16:9" Tag="16:9"/><ComboBoxItem Content="9:16" Tag="9:16"/><ComboBoxItem Content="1:1" Tag="1:1"/><ComboBoxItem Content="4:3" Tag="4:3"/><ComboBoxItem Content="3:4" Tag="3:4"/><ComboBoxItem Content="21:9" Tag="21:9"/></ComboBox><Button Content="裁切" Click="Crop_Click" Padding="12,4" Margin="0,0,6,6"/><Button Content="＋ 叠加层" Click="Overlay_Click" Padding="12,4" Margin="0,0,6,6"/><ComboBox x:Name="QualityPicker" Width="144" Margin="0,0,0,6" SelectedIndex="1" SelectionChanged="Quality_Changed"><ComboBoxItem Content="清晰预览"/><ComboBoxItem Content="完整分辨率"/></ComboBox></StackPanel>
+    <Border Grid.Row="1" Background="{DynamicResource PreviewBrush}" CornerRadius="10" ClipToBounds="True"><Grid x:Name="PreviewArea"><Image x:Name="ScenePreview" Stretch="Uniform" MouseLeftButtonDown="Canvas_Down" MouseMove="Canvas_Move" MouseLeftButtonUp="Canvas_Up"/><local:CropAdorner x:Name="CropOverlay" Visibility="Collapsed"/><StackPanel x:Name="EmptyState" HorizontalAlignment="Center" VerticalAlignment="Center"><TextBlock Text="Menfan" FontSize="36" Foreground="{DynamicResource TextBrush}" HorizontalAlignment="Center"/><TextBlock Text="录制或导入素材，开始创作" Margin="0,12" Foreground="{DynamicResource TextBrush}"/></StackPanel></Grid></Border>
+    <Grid Grid.Row="2" Margin="0,6,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><Button x:Name="PlayButton" Content="▶" Click="Play_Click" Padding="14,3"/><Slider x:Name="Seek" Grid.Column="1" Minimum="0" ValueChanged="Seek_Changed" VerticalAlignment="Center" Margin="8,0"/><TextBlock x:Name="PositionText" Grid.Column="2" Text="00:00 / 00:00" FontFamily="Consolas" VerticalAlignment="Center" Foreground="{DynamicResource TextBrush}"/><Button Grid.Column="3" x:Name="PreviewFullscreenButton" Content="全屏预览" ToolTip="全屏预览 F · Esc 返回" Click="PreviewFullscreen_Click" Padding="10,3" Margin="10,0,0,0"/></Grid>
+   </Grid>
+   <Border Grid.Column="2" Background="{DynamicResource PanelBrush}" CornerRadius="12" Padding="16"><ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel x:Name="Properties"/></ScrollViewer></Border>
+  </Grid>
+  <Border Grid.Row="2" Background="{DynamicResource PanelBrush}" CornerRadius="12" Margin="0,14,0,0" Padding="10">
+   <Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+    <StackPanel Orientation="Horizontal"><Button Content="✂ 分割 S" Click="Split_Click" Padding="10,4"/><Button Content="← Q" ToolTip="波纹删除当前片段播放头之前" Click="RippleBefore_Click" Padding="10,4"/><Button Content="W →" ToolTip="波纹删除当前片段播放头之后" Click="RippleAfter_Click" Padding="10,4"/><Button Content="删除" Click="Delete_Click" Padding="10,4"/><Button Content="恢复原片" Click="Reset_Click" Padding="10,4"/><CheckBox x:Name="WaveformToggle" Content="波形" Checked="TimelineOption_Changed" Unchecked="TimelineOption_Changed" Margin="12,5"/><CheckBox x:Name="SnapToggle" Content="吸附" IsChecked="True" Checked="TimelineOption_Changed" Unchecked="TimelineOption_Changed" Margin="4,5"/></StackPanel>
+    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"><Button Content="−" Click="ZoomOut_Click" Padding="10,3"/><Button Content="＋" Click="ZoomIn_Click" Padding="10,3"/></StackPanel>
+    <ScrollViewer x:Name="TimelineScroll" Grid.Row="1" HorizontalContentAlignment="Left" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Margin="0,6,0,0"><local:TimelineControl x:Name="Timeline" HorizontalAlignment="Left"/></ScrollViewer>
+   </Grid>
+  </Border>
+  <Grid Grid.Row="3" Margin="0,8,0,0"><TextBlock x:Name="Status" Text="准备就绪" Foreground="{DynamicResource TextBrush}" FontSize="14" TextTrimming="CharacterEllipsis" Margin="0,0,240,0"/><ProgressBar x:Name="ExportProgress" Width="170" Height="5" HorizontalAlignment="Right" Minimum="0" Maximum="1" Visibility="Collapsed"/><Button x:Name="CancelExport" Content="取消导出" Click="CancelExport_Click" Padding="8,0" Margin="0,0,184,0" HorizontalAlignment="Right" Visibility="Collapsed"/></Grid>
+ </Grid>
+ <Grid x:Name="FullscreenOverlay" Visibility="Collapsed" Background="Black" MouseMove="Fullscreen_MouseMove">
+  <Image x:Name="FullscreenImage" Source="{Binding Source, ElementName=ScenePreview}" Stretch="Uniform" MouseLeftButtonDown="FullscreenImage_Click"/>
+  <Border x:Name="FullscreenControls" VerticalAlignment="Bottom" Background="{DynamicResource PanelBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="12" Margin="32" Padding="16,12">
+   <Grid><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+    <TextBlock Text="全屏预览 · 空格 播放/暂停 · ← → 逐帧 · Esc 返回剪辑" FontSize="15" Margin="0,0,0,10"/>
+    <Grid Grid.Row="1"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+     <Button x:Name="FullscreenPlayButton" Content="{Binding Content, ElementName=PlayButton}" ToolTip="播放/暂停 Space" Click="Play_Click" Padding="18,7"/>
+     <Slider x:Name="FullscreenSeek" Grid.Column="1" Minimum="0" Maximum="{Binding Maximum, ElementName=Seek}" Value="{Binding Value, ElementName=Seek, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" VerticalAlignment="Center" Margin="8,0,18,0"/>
+     <TextBlock Grid.Column="2" Text="{Binding Text, ElementName=PositionText}" FontFamily="Consolas" VerticalAlignment="Center"/>
+     <Button Grid.Column="3" Content="退出全屏 Esc" Click="PreviewFullscreen_Click" Padding="14,7" Margin="18,0,0,0"/>
+    </Grid>
+   </Grid>
+  </Border>
+ </Grid>
+  <MediaElement x:Name="Player" Width="1" Height="1" Opacity="0" IsHitTestVisible="False" LoadedBehavior="Manual" UnloadedBehavior="Stop" MediaFailed="Player_Failed"/>
+ </Grid>
+</Window>
