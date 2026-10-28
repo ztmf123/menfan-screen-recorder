@@ -78,7 +78,7 @@ internal sealed class MediaFrameReader : IDisposable
             var bitmap = BitmapSource.Create(width, height, 96, 96, PixelFormats.Bgra32, null, bytes, width * 4);
             bitmap.Freeze(); last = bitmap; return bitmap;
         }
-        catch (Exception ex) when (ct.IsCancellationRequested && ex is IOException or ObjectDisposedException or InvalidOperationException) { throw new OperationCanceledException(ct); }
+        catch (Exception) when (ct.IsCancellationRequested) { Stop(); index = -1; last = null; throw new OperationCanceledException(ct); }
         finally { gate.Release(); }
     }
     private void Stop()

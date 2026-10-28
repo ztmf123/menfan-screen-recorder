@@ -26,7 +26,7 @@ internal static class Program
                 int hiddenStopRequests = 0;
                 using (var hiddenPanels = new RecordingPanelHider(app.Windows.OfType<Window>(), () => hiddenStopRequests++))
                 {
-                    Check(!app.Windows.OfType<Window>().Any(w => w.IsVisible), "Hidden recording mode hides all visible app panels");
+                    Check(launcher.IsVisible && !editor.IsVisible, "Capture exclusion preserves the visible recorder controls");
                     hiddenPanels.RequestStop(); Check(hiddenStopRequests == 1, "Tray stop action remains available while panels are hidden");
                 }
                 Check(launcher.IsVisible && !editor.IsVisible, "Leaving hidden recording restores the previous toolbar state");
@@ -67,6 +67,16 @@ internal static class Program
                     FindButton(editor, "裁切")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Task.Delay(300);
                     var crop = (CropAdorner)editor.FindName("CropOverlay");
                     Check(crop.Visibility == Visibility.Visible && Math.Abs(crop.TopCrop - .1) < .001, "Crop mode displays source-aligned crop handles");
+                    var pausedSeek = (Slider)editor.FindName("Seek");
+                    pausedSeek.Value = .2; await Task.Delay(250);
+                    var firstSeekPixels = PreviewPixels(((Image)editor.FindName("ScenePreview")).Source);
+                    foreach (double value in new[] { 2.9, .5, 2.5 }) { pausedSeek.Value = value; await Task.Delay(60); }
+                    await Task.Delay(250);
+                    var lastSeekPixels = PreviewPixels(((Image)editor.FindName("ScenePreview")).Source);
+                    SaveVisual(editor, "artifacts/ui-tests/paused-seek.png");
+                    Console.WriteLine($"Seek diagnostics: native={editor.NativePreviewReady}, source={((Image)editor.FindName("ScenePreview")).Source.GetType().Name}, first={firstSeekPixels.Sum(v => (long)v)}, last={lastSeekPixels.Sum(v => (long)v)}, status={((TextBlock)editor.FindName("Status")).Text}");
+                    Check(!editor.IsPreviewPlaying && firstSeekPixels.Where((v, i) => Math.Abs(v - lastSeekPixels[i]) > 20).Count() > 100,
+                        "Paused scrubbing displays different source frames without pressing play");
                     SaveVisual(editor, "artifacts/ui-tests/crop.png");
                     FindButton(editor, "完成裁切")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Task.Delay(300);
                     Check(crop.Visibility == Visibility.Collapsed, "Finishing crop restores composed preview");
@@ -95,6 +105,15 @@ internal static class Program
                     editor.SetPreviewFullscreen(true); editor.SetPreviewFullscreen(false);
                     Check(editor.WindowState == WindowState.Maximized, "Preview restores an already maximized window");
                     editor.WindowState = WindowState.Normal;
+                    await editor.PrepareAudioForTestingAsync();
+                    var preparedAudio = player.Source;
+                    ((Button)editor.FindName("PlayButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Task.Delay(100);
+                    ((Button)editor.FindName("PlayButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    var resumeClock = System.Diagnostics.Stopwatch.StartNew();
+                    ((Button)editor.FindName("PlayButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    Check(editor.IsPreviewPlaying && ReferenceEquals(preparedAudio, player.Source) && resumeClock.ElapsedMilliseconds < 250,
+                        "Warm resume reuses opened audio and starts without rebuilding playback resources");
+                    ((Button)editor.FindName("PlayButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                     ThemeService.Apply("Light"); await Task.Delay(200);
                     Check(((SolidColorBrush)editor.Background).Color == Colors.White && ((SolidColorBrush)editor.Foreground).Color == Colors.Black && ((TextBlock)editor.FindName("ProjectTitle")).Foreground is SolidColorBrush { Color: var labelColor } && labelColor == Colors.Black, "Light mode updates existing windows and labels immediately");
                     Check(((Button)editor.FindName("PlayButton")).FontWeight == FontWeights.Normal, "Both themes retain regular-weight controls");
@@ -127,6 +146,12 @@ internal static class Program
         var encoder = new PngBitmapEncoder(); encoder.Frames.Add(BitmapFrame.Create(bitmap)); encoder.Save(stream);
     }
     private static void Check(bool condition, string name) { if (!condition) throw new Exception("FAIL " + name); Console.WriteLine("PASS " + name); }
+    private static byte[] PreviewPixels(ImageSource source)
+    {
+        var visual = new DrawingVisual(); using (var dc = visual.RenderOpen()) dc.DrawImage(source, new Rect(0, 0, 320, 180));
+        var bitmap = new RenderTargetBitmap(320, 180, 96, 96, PixelFormats.Pbgra32); bitmap.Render(visual);
+        var pixels = new byte[320 * 180 * 4]; bitmap.CopyPixels(pixels, 320 * 4, 0); return pixels;
+    }
     private static void CheckCompletionButtons(Window window)
     {
         var root = (FrameworkElement)window.Content;

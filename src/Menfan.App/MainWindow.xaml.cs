@@ -160,7 +160,7 @@ public partial class MainWindow : Window
     {
         if (busy || recorder != null) return;
         recordingSettings.HidePanelsWhileRecording = enabled;
-        Status.Text = enabled ? "面板将自动隐藏 · Ctrl+Alt+R 或双击托盘图标停止" : "录制时显示控制面板";
+        Status.Text = enabled ? "面板保持可见，但不出现在录制画面中" : "录制时显示控制面板";
         try { recordingSettings.Save(); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { Status.Text = "本次设置已生效，但未能保存。"; }
     }
@@ -175,7 +175,7 @@ public partial class MainWindow : Window
     }
     public void ShowNotes()
     {
-        if (hiddenRecordingPanels != null) return;
+
         if (notes == null) { notes = new NotesWindow(); notes.Closed += (_, _) => notes = null; }
         notes.Show(); notes.Activate();
     }
@@ -210,7 +210,7 @@ public partial class MainWindow : Window
         if (captureTarget.DeviceName != null && captureTarget.DeviceName == recordingSettings.CameraName) { ShowError("同一摄像设备不能同时作为主画面和画中画来源。"); return; }
         bool hidePanels = recordingSettings.HidePanelsWhileRecording;
         if (hidePanels && captureTarget.Handle != IntPtr.Zero && System.Windows.Application.Current.Windows.OfType<Window>().Any(w => new WindowInteropHelper(w).Handle == captureTarget.Handle))
-        { ShowError("隐藏面板模式不能录制本软件窗口，请选择显示器、区域或其他应用。"); return; }
+        { ShowError("排除面板模式不能录制本软件窗口，请选择显示器、区域或其他应用。"); return; }
         busy = true; Pause(); ExitDisplayModes(); completion?.Close();
         Recorder? pending = null;
         try
@@ -218,7 +218,7 @@ public partial class MainWindow : Window
             for (int i = 3; i > 0; i--) { Status.Text = $"{i} 秒后开始录制…"; await Task.Delay(1000); }
             Status.Text = "正在启动录制…";
             Launcher?.RefreshRecordingState();
-            Hide(); Launcher?.Show(); Launcher?.ExcludeFromCapture(true);
+            Hide(); Launcher?.Show(); Launcher?.ExcludeFromCapture(false);
             if (hidePanels)
             {
                 hiddenRecordingPanels = new RecordingPanelHider(System.Windows.Application.Current.Windows.OfType<Window>(), () => {
@@ -284,7 +284,13 @@ public partial class MainWindow : Window
         await PrepareReadersAsync();
         loading = true; foreach (ComboBoxItem item in AspectPicker.Items) if (item.Tag.ToString() == p.Style.Aspect) AspectPicker.SelectedItem = item; loading = false;
         ProjectTitle.Text = Path.GetFileNameWithoutExtension(p.MediaPath); EmptyState.Visibility = Visibility.Collapsed;
-        BuildProperties(); UpdateTransport(); _ = LoadTimelineAssetsAsync(p, mediaLifetime.Token); await RefreshPreviewAsync();
+        BuildProperties(); UpdateTransport(); _ = LoadTimelineAssetsAsync(p, mediaLifetime.Token);
+        _ = OpenNativePreviewAsync(p); await RefreshPreviewAsync();
+    }
+    private async Task OpenNativePreviewAsync(Project p)
+    {
+        if (await nativeVideo.OpenAsync(p.MediaPath) && ReferenceEquals(project, p))
+            await RefreshPreviewAsync();
     }
     internal Task LoadForTestingAsync(Project p) => LoadProjectAsync(p);
     internal Task PrepareAudioForTestingAsync() => PrepareAudioPreviewAsync();
@@ -338,9 +344,8 @@ public partial class MainWindow : Window
                 var sourceFrames = screenReader; var cameraFrames = cameraReader; var backgroundFrames = backgroundReader;
                 var state = SceneEvaluator.Evaluate(p, time);
                 var stage = Stopwatch.StartNew();
-                bool live = playing && QualityPicker.SelectedIndex == 1 && nativeVideo.Matches(p.Width, p.Height)
-                    && (module != "裁切" || previewFullscreen);
-                ImageSource source = live ? nativeVideo.Frame(p, time) : await PreviewFrameAsync(sourceFrames, Math.Min(p.Duration - .02, state.SourceTime), ct, exact: !playing);
+                bool live = nativeVideo.Matches(p.Width, p.Height);
+                ImageSource source = live ? nativeVideo.Frame(p, time, playing) : await PreviewFrameAsync(sourceFrames, Math.Min(p.Duration - .02, state.SourceTime), ct, exact: !playing);
                 PreviewDecodeMilliseconds += stage.Elapsed.TotalMilliseconds;
                 if (module == "裁切" && !previewFullscreen)
                 {
@@ -372,7 +377,8 @@ public partial class MainWindow : Window
     private void SeekTo(double time)
     {
         if (project == null || busy) return;
-        previewRevision++; nativeVideo.Pause(); position = Math.Clamp(time, 0, project.EditedDuration); playbackStart = position; playbackClock.Restart();
+        Pause(); previewRevision++; renderLifetime.Cancel(); renderLifetime = new();
+        position = Math.Clamp(time, 0, project.EditedDuration); playbackStart = position;
         if (Player.Source != null) Player.Position = TimeSpan.FromSeconds(position);
         UpdateTransport(); _ = RefreshPreviewAsync();
     }
@@ -396,11 +402,12 @@ public partial class MainWindow : Window
         {
             busy = true; preparingPlayback = true; Status.Text = "准备预览…";
             await PrepareAudioPreviewAsync();
-            if (QualityPicker.SelectedIndex == 1 && await nativeVideo.OpenAsync(project.MediaPath)) await PrepareReadersAsync();
+            await nativeVideo.OpenAsync(project.MediaPath);
             if (!IsActive && !KeepPreviewPlayingForDiagnostics) return;
             playbackStart = position; playbackClock.Restart(); playing = true; preparingPlayback = false; previewRevision++; PlayButton.Content = "Ⅱ";
             if (Player.Source != null) { Player.Position = TimeSpan.FromSeconds(position); Player.Play(); }
             Status.Text = "播放预览";
+            await RefreshPreviewAsync();
         }
         catch (Exception ex) { ShowError(ex.Message); }
         finally { preparingPlayback = false; busy = false; }
@@ -408,12 +415,14 @@ public partial class MainWindow : Window
     private async Task PrepareAudioPreviewAsync()
     {
         if (project == null || tools == null) return;
-        Player.Close(); Player.Source = null; if (project.Style.Mute) return;
-        var info = await tools.ProbeAsync(project.MediaPath);
-        if (!info.HasAudio && project.SystemAudioPath == null && project.MicrophonePath == null) return;
+        if (project.Style.Mute) { Player.Close(); Player.Source = null; return; }
         var files = new[] { project.MediaPath, project.SystemAudioPath, project.MicrophonePath }.Where(p => p != null).Select(p => new FileInfo(p!)).Select(f => new { f.FullName, f.Length, f.LastWriteTimeUtc }).ToArray();
         var key = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new { files, project.SystemAudioOffset, project.MicrophoneOffset, project.Clips, project.SystemVolume, project.MicrophoneVolume }))));
         var folder = Path.Combine(Path.GetTempPath(), "MenfanAudio"); Directory.CreateDirectory(folder); string path = Path.Combine(folder, key + ".m4a");
+        if (Player.Source?.LocalPath == path) return;
+        Player.Close(); Player.Source = null;
+        var info = await tools.ProbeAsync(project.MediaPath);
+        if (!info.HasAudio && project.SystemAudioPath == null && project.MicrophonePath == null) return;
         if (!File.Exists(path)) await tools.ExportAsync(project, path, new(AudioOnly: true));
         var opened = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         RoutedEventHandler onOpened = (_, _) => opened.TrySetResult();

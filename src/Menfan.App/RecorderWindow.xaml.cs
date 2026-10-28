@@ -20,6 +20,8 @@ public partial class RecorderWindow : Window
         this.controller = controller;
         InitializeComponent();
         Width = Math.Min(980, SystemParameters.WorkArea.Width - 24);
+        SourceInitialized += (_, _) => UpdateRoundedRegion();
+        SizeChanged += (_, _) => UpdateRoundedRegion();
         Loaded += (_, _) => {
             RefreshSources(0);
             Microphone.IsChecked = controller.MicrophoneEnabled; SystemSound.IsChecked = controller.SystemSoundEnabled; Fps.SelectedIndex = controller.RecordingFpsIndex;
@@ -28,6 +30,13 @@ public partial class RecorderWindow : Window
             timer.Start();
         };
         timer.Tick += (_, _) => RefreshState();
+    }
+    private void UpdateRoundedRegion()
+    {
+        var handle = new WindowInteropHelper(this).Handle; if (handle == IntPtr.Zero || ActualWidth <= 0 || ActualHeight <= 0) return;
+        var dpi = System.Windows.Media.VisualTreeHelper.GetDpi(this);
+        var region = Native.CreateRoundRectRgn(0, 0, (int)Math.Ceiling(ActualWidth * dpi.DpiScaleX) + 1, (int)Math.Ceiling(ActualHeight * dpi.DpiScaleY) + 1, (int)(32 * dpi.DpiScaleX), (int)(32 * dpi.DpiScaleY));
+        if (region != IntPtr.Zero && Native.SetWindowRgn(handle, region, true) == 0) Native.DeleteObject(region);
     }
     public void ExcludeFromCapture(bool exclude) => Native.SetWindowDisplayAffinity(new WindowInteropHelper(this).Handle, exclude ? 0x11u : 0u);
     internal void RefreshRecordingState() => RefreshState();

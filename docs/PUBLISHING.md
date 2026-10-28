@@ -22,3 +22,4 @@
 仓库的 Windows build 工作流会在 `main` 收到以 `Release v` 开头的提交时，先构建、测试、打包，再用当前提交创建对应 Beta 标签和 Pre-release，上传 ZIP 与校验文件。普通提交仅构建，不发布。也可手动运行工作流并开启 `publish_beta`。发布任务仅接受 `-beta.N` 版本；已存在的同名发布保留原样，不覆盖附件。
 
 便携包不包含 FFmpeg。用户需单独安装 FFmpeg 与 ffprobe，并在程序提示中选择路径。发布范围与尚未验证的设备场景见 `RELEASE_NOTES.md`。
+如用户明确要求替换同版本 Beta，可使用以 Release v 开头且包含 [replace] 的提交；测试通过后更新该标签、发布说明和同名附件。普通提交仍不会覆盖发布。

@@ -33,14 +33,21 @@ internal static class HiddenPanelCaptureCheck
                     await Task.Run(() => Native.DwmFlush());
                     await recorder.StartAsync(tools, new CaptureTarget("Hidden panel test region", 0, 0, 640, 360), 30, false, false, folder);
                     await Task.Delay(1200); hiding.RequestStop();
-                    if (!stopRequested || panel.IsVisible) throw new Exception("Hidden panel controls did not stay hidden.");
+                    if (!stopRequested || !panel.IsVisible) throw new Exception("Capture-excluded panel must remain visible and usable.");
                     var project = await recorder.StopAsync(tools);
                     using (var reader = new MediaFrameReader(tools, project.MediaPath, 640, 360))
                         foreach (double time in new[] { 0, project.Duration / 2, Math.Max(0, project.Duration - .08) })
-                            if (MagentaPixels(await reader.GetFrameAsync(time)) > 0) throw new Exception("The hidden panel appeared in recorded frames.");
+                        {
+                            var captured = await reader.GetFrameAsync(time);
+                            if (MagentaPixels(captured) > 0) throw new Exception("The excluded panel appeared in recorded frames.");
+                            var rgba = new FormatConvertedBitmap(captured, PixelFormats.Bgra32, null, 0);
+                            var sample = new byte[40 * 20 * 4]; rgba.CopyPixels(new Int32Rect(80, 70, 40, 20), sample, 40 * 4, 0);
+                            if (Enumerable.Range(0, 800).Count(i => sample[i * 4] > 80 && sample[i * 4 + 1] < 40 && sample[i * 4 + 2] < 40) < 750)
+                                throw new Exception("Exclusion left a hole instead of the underlying desktop.");
+                        }
                     hiding.Dispose(); hiding = null;
                     if (!panel.IsVisible) throw new Exception("The panel was not restored after recording.");
-                    Console.WriteLine("PASS Visible panel appears before hiding; first, middle and final recorded frames exclude it; panel and tray control restore correctly.");
+                    Console.WriteLine("PASS Panel stays visible; first, middle and final recorded frames exclude it.");
                     Console.WriteLine("Project: " + folder);
                 }
                 catch (Exception ex) { result = 1; Console.Error.WriteLine(ex); }
