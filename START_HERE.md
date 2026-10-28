@@ -1,4 +1,4 @@
-# 首次使用 · Menfan Screen Recorder v0.5.0-beta.1 · 测试版
+# 首次使用 · Menfan Screen Recorder v0.5.0-beta.2 · 测试版
 
 1. 在 Windows 10 22H2 或 Windows 11 x64 解压便携包，运行 `Menfan.ScreenRecorder.exe`。便携包自带 .NET 运行时。
 2. FFmpeg 单独安装。如果提示选择工具，选择同时含有 `ffprobe.exe` 的目录中的 `ffmpeg.exe`。当前开发目录已安装在 `.tools/ffmpeg/bin/ffmpeg.exe`。
@@ -37,3 +37,5 @@
 默认素材目录为“视频/Menfan Screen Recorder”。项目引用原素材和独立音轨，并非单文件素材包；移动时连同整个文件夹保存。导入视频保持原位置。
 
 关闭编辑器返回工具栏；关闭工具栏退出。建议先短录制检查设备、声音和区域。详细差异及验证范围见 `docs/FEATURE_PARITY.md` 与 `docs/VALIDATION.md`。
+
+编辑器左侧进入“运镜”，开启“跟随鼠标运镜（无需点击）”。默认放大 1.6 倍，画面随录制时的鼠标轨迹平滑移动，可调整跟随倍率和平滑时长。此功能默认关闭，不会改变新录制的白板状态；普通导入视频没有鼠标轨迹时无法使用，已有手动镜头片段优先。

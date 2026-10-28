@@ -32,6 +32,28 @@ internal static class Program
         Check(Math.Abs(before.RotateY - after.RotateY) < .01 && Math.Abs(before.Zoom - after.Zoom) < .01, "Adjacent 3D animations remain continuous at their seam");
         p.Clips = [new() { End = 4 }]; p.Effects.Clear(); TimelineMap.GenerateAutoZoom(p);
         Check(p.Effects.Any(e => e.Auto), "Clicks produce timed zoom effects");
+        var follow = new Project { MediaPath = source, Width = 640, Height = 360, Duration = 4, Clips = [new() { End = 4 }],
+            Cursor = Enumerable.Range(0, 121).Select(i => new CursorSample { Time = i / 30d, X = .1 + .8 * i / 120, Y = .2 + .6 * i / 120, Click = false }).ToList() };
+        follow.ResetVisualEdits();
+        Check(!follow.Style.MouseFollow && SceneEvaluator.Evaluate(follow, 1).Zoom == 1, "Mouse follow is opt-in and new recordings remain blank");
+        follow.Style.MouseFollow = true;
+        var followEarly = SceneEvaluator.Evaluate(follow, .5); var followLate = SceneEvaluator.Evaluate(follow, 3);
+        Check(followLate.FocusX > followEarly.FocusX + .3 && followLate.FocusY > followEarly.FocusY + .2 && followLate.Zoom == 1.6 && follow.Effects.Count == 0,
+            "Mouse movement drives zoom and pan without any clicks or generated effects");
+        var followRaw = SceneEvaluator.CursorAt(follow, 3);
+        Check(followLate.FocusX < followRaw.X && followLate.FocusX > followRaw.X - .1, "Mouse-follow smoothing reduces abrupt camera movement");
+        _ = SceneEvaluator.Evaluate(follow, .1);
+        var followAfterSeek = SceneEvaluator.Evaluate(follow, 3);
+        Check(followAfterSeek.FocusX == followLate.FocusX && followAfterSeek.FocusY == followLate.FocusY && followAfterSeek.Zoom == followLate.Zoom, "Mouse-follow camera is deterministic after seeking backwards");
+        follow.Clips = [new() { Start = 2, End = 4, Speed = 2 }]; follow.Style.MouseFollowSmoothing = 0;
+        Check(Math.Abs(SceneEvaluator.Evaluate(follow, .25).FocusX - SceneEvaluator.CursorAt(follow, 2.5).X) < .00001, "Mouse follow respects trim and playback speed");
+        follow.Clips = [new() { End = 1 }]; follow.Style.MouseFollowSmoothing = .2;
+        var followProject = Path.Combine(root, "mouse-follow.menfan"); follow.Save(followProject);
+        Check(Project.Load(followProject).Style.MouseFollow && Project.Load(followProject).Style.MouseFollowZoom == 1.6, "Mouse follow settings survive project saving");
+        var followVideo = Path.Combine(root, "mouse-follow.mp4");
+        SceneExporter.ExportAsync(tools, follow, followVideo, new(360, 30), null, CancellationToken.None).GetAwaiter().GetResult();
+        Check(tools.ProbeAsync(followVideo).GetAwaiter().GetResult().Duration > .9, "Click-free mouse-follow scene exports successfully");
+        follow.Cursor.Clear(); Check(SceneEvaluator.Evaluate(follow, .5).Zoom == 1, "Missing cursor metadata leaves original framing unchanged");
         p.Style.BackgroundKind = "Gradient"; p.Style.Frame = "LightBrowser"; p.Style.FrameText = "menfan.app";
         p.CameraPath = source; p.Camera.Size = .25;
         p.Effects.Add(new() { Kind = "Screen3D", Start = .5, End = 3.5, RotateX = 12, RotateY = -18, RotateZ = 3, Zoom = 1.1 });

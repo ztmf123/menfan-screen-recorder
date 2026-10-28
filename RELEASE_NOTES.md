@@ -1,12 +1,18 @@
-# Menfan Screen Recorder v0.5.0-beta.1
+# Menfan Screen Recorder v0.5.0-beta.2
 
-首个公开 Beta 测试版。面向 Windows 10 22H2 / Windows 11 x64 的原生录屏与轻量剪辑工具，灵感来自 DogSC。
+第二个公开 Beta 测试版。面向 Windows 10 22H2 / Windows 11 x64 的原生录屏与轻量剪辑工具，灵感来自 DogSC。
 
 ## 下载与运行
 
-解压 `Menfan-Screen-Recorder-v0.5.0-beta.1-win-x64.zip`，运行 `Menfan.ScreenRecorder.exe`。便携包自带 .NET 运行时，FFmpeg 与 ffprobe 需单独安装；首次使用见 [START_HERE.md](START_HERE.md)。校验文件为同名 `.zip.sha256`。
+解压 `Menfan-Screen-Recorder-v0.5.0-beta.2-win-x64.zip`，运行 `Menfan.ScreenRecorder.exe`。便携包自带 .NET 运行时，FFmpeg 与 ffprobe 需单独安装；首次使用见 [START_HERE.md](START_HERE.md)。校验文件为同名 `.zip.sha256`。
 
-## 本版功能
+## Beta 2 新增
+
+- 跟随鼠标运镜，无需点击。录制后在“运镜”中开启，可调整倍率和平滑程度。
+- 跟随轨迹支持剪辑、变速、项目保存，预览和导出使用相同的求值方式。
+- 默认关闭，保留空白初始编辑状态；没有鼠标元数据的导入视频保持原画面。
+
+## 已有功能
 
 - 小型录制工具栏，支持显示器、窗口、区域和 DirectShow 设备；系统声音与麦克风独立采集。
 - 倒计时、暂停/继续、标记、备忘录，以及录制时隐藏软件面板。

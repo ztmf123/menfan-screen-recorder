@@ -175,6 +175,9 @@ public sealed class VisualStyle
     public double CursorSmoothing { get; set; } = .12;
     public double Zoom { get; set; } = 1;
     public bool FollowCursor { get; set; }
+    public bool MouseFollow { get; set; }
+    public double MouseFollowZoom { get; set; } = 1.6;
+    public double MouseFollowSmoothing { get; set; } = .2;
     public bool ClickHighlight { get; set; } = true;
     public bool Mute { get; set; }
 }

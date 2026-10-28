@@ -189,6 +189,11 @@ public static class SceneEvaluator
         double zoom = project.Style.Zoom, x = .5, y = .5, rx = 0, ry = 0, rz = 0, perspective = .65;
         if (project.Style.FollowCursor && project.Cursor.Count > 0)
         { var cursor = CursorAt(project, source); x = cursor.X; y = cursor.Y; }
+        if (project.Style.MouseFollow && project.Cursor.Count > 0)
+        {
+            var focus = MouseFollowAt(project, time);
+            x = focus.X; y = focus.Y; zoom = Math.Max(zoom, project.Style.MouseFollowZoom);
+        }
         foreach (var e in project.Effects.Where(e => e.Kind is "Zoom" or "Screen3D" or "Camera"))
         {
             if (time < e.Start || time >= e.End) continue;
@@ -218,6 +223,24 @@ public static class SceneEvaluator
         double w = b.Time > a.Time ? Math.Clamp((t - a.Time) / (b.Time - a.Time), 0, 1) : 0;
         return new() { Time = a.Time, X = a.X + (b.X - a.X) * w, Y = a.Y + (b.Y - a.Y) * w, ShapePath = a.ShapePath, HotspotX = a.HotspotX, HotspotY = a.HotspotY, Visible = a.Visible };
     }
+    private static (double X, double Y) MouseFollowAt(Project project, double outputTime)
+    {
+        var clip = TimelineMap.Locate(project, outputTime);
+        var current = CursorAt(project, clip.SourceTime);
+        double smoothing = project.Style.MouseFollowSmoothing;
+        if (smoothing <= 0) return (Math.Clamp(current.X, 0, 1), Math.Clamp(current.Y, 0, 1));
+        // Evaluate from source timestamps, never previous rendered frames: seeking,
+        // export and different preview frame rates produce the same camera path.
+        double x = 0, y = 0, total = 0;
+        for (int i = 0; i < 16; i++)
+        {
+            double age = i * smoothing * 4 / 15;
+            double sampleTime = Math.Max(project.Clips[clip.Index].Start, clip.SourceTime - age * project.Clips[clip.Index].Speed);
+            var sample = CursorAt(project, sampleTime); double weight = Math.Exp(-age / smoothing);
+            x += Math.Clamp(sample.X, 0, 1) * weight; y += Math.Clamp(sample.Y, 0, 1) * weight; total += weight;
+        }
+        return (x / total, y / total);
+    }
 }
 
 public static class SceneValidation
@@ -226,6 +249,7 @@ public static class SceneValidation
     public static void Validate(Project p)
     {
         var s = p.Style;
+        if (!Between(s.MouseFollowZoom, 1, 3) || !Between(s.MouseFollowSmoothing, 0, 1)) throw new InvalidDataException("鼠标跟随运镜参数无效。");
         if (!Between(p.FrameRate, 1, 1000)) throw new InvalidDataException("帧率无效。");
         if (!new[] { "Source", "16:9", "9:16", "1:1", "4:3", "3:4", "21:9" }.Contains(s.Aspect)) throw new InvalidDataException("画布比例无效。");
         if (!new[] { s.CropLeft, s.CropTop, s.CropRight, s.CropBottom }.All(c => Between(c, 0, .9)) || s.CropLeft + s.CropRight >= .95 || s.CropTop + s.CropBottom >= .95)

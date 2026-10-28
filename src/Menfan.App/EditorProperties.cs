@@ -62,6 +62,10 @@ public partial class MainWindow
                 Choice("屏幕进入方向", ["Bottom", "Right", "Top"], ["下方", "右侧", "上方"], s.IntroDirection, v => s.IntroDirection = v);
                 Hint("背景先出现，屏幕和摄像头随后进入。播放头移到片头查看效果。"); break;
             case "运镜":
+                Check("跟随鼠标运镜（无需点击）", s.MouseFollow, v => s.MouseFollow = v);
+                Slider("跟随放大倍率", 1, 3, s.MouseFollowZoom, v => s.MouseFollowZoom = v);
+                Slider("跟随平滑 / 秒", 0, 1, s.MouseFollowSmoothing, v => s.MouseFollowSmoothing = v);
+                Hint(p.Cursor.Count > 0 ? "开启后按录制时的鼠标移动持续运镜，无需点击；手动镜头片段优先。倍率大于 1 时可看到画面平移。" : "此素材没有独立鼠标轨迹，无法跟随。请使用 Menfan 新录制的素材；普通导入视频无法还原鼠标轨迹。");
                 Choice("新运镜默认节奏", ["Smooth", "Brisk", "Gentle", "Bouncy"], ["顺滑", "利落", "柔和", "轻弹"], s.MotionStyle, v => s.MotionStyle = v);
                 ActionButton("根据点击生成自动缩放", () => { Snapshot(); TimelineMap.GenerateAutoZoom(p); Dirty(); BuildProperties(); });
                 ActionButton("＋ 手动缩放", () => AddEffect("Zoom")); ActionButton("＋ 屏幕 3D", () => AddEffect("Screen3D"));

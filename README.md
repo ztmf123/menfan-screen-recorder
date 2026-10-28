@@ -6,11 +6,11 @@
 
 <p align="center"><strong>Windows 原生录屏与轻量剪辑工具</strong></p>
 
-<p align="center"><a href="https://github.com/ztmf123/menfan-screen-recorder/releases/tag/v0.5.0-beta.1">下载 Beta 测试版</a> · <a href="START_HERE.md">首次使用</a> · <a href="https://github.com/ztmf123/menfan-screen-recorder/issues">反馈问题</a></p>
+<p align="center"><a href="https://github.com/ztmf123/menfan-screen-recorder/releases/tag/v0.5.0-beta.2">下载 Beta 测试版</a> · <a href="START_HERE.md">首次使用</a> · <a href="https://github.com/ztmf123/menfan-screen-recorder/issues">反馈问题</a></p>
 
 Windows 原生录屏与轻量剪辑工具，灵感来自 [DogSC](https://github.com/laogou717/dogsc)（神烦老狗）。这是独立的 Windows 实现。
 
-**v0.5.0-beta.1 · 公开测试版**：已按演示视频补齐主要录制、运镜与剪辑流程，支持全屏剪辑、黑白主题，并优化完整分辨率播放，默认使用完整分辨率预览；仍有功能差异和设备验证工作。目标系统为 Windows 10 22H2 / Windows 11 x64，本轮实机验证系统为 Windows 10 22H2。
+**v0.5.0-beta.2 · 公开测试版**：已按演示视频补齐主要录制、运镜与剪辑流程，支持全屏剪辑、黑白主题，并优化完整分辨率播放，默认使用完整分辨率预览；仍有功能差异和设备验证工作。目标系统为 Windows 10 22H2 / Windows 11 x64，本轮实机验证系统为 Windows 10 22H2。
 
 ## 使用与功能
 
@@ -71,3 +71,5 @@ Visual Studio 2022 安装“.NET 桌面开发”工作负载，打开 `Menfan.Sc
 MIT。来源与依赖声明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
 当前图标采用用户选定的深色圆角设计，包含录像、红色录制点、胶片和剪刀。应用与 README 顶部使用同一张图片，资源说明见 [ICON_DESIGN.md](docs/ICON_DESIGN.md)。
+
+编辑器左侧进入“运镜”，开启“跟随鼠标运镜（无需点击）”。默认放大 1.6 倍，画面随录制时的鼠标轨迹平滑移动，可调整跟随倍率和平滑时长。此功能默认关闭，不会改变新录制的白板状态；普通导入视频没有鼠标轨迹时无法使用，已有手动镜头片段优先。
