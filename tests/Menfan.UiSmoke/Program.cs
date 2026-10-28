@@ -105,6 +105,13 @@ internal static class Program
                     editor.SetPreviewFullscreen(true); editor.SetPreviewFullscreen(false);
                     Check(editor.WindowState == WindowState.Maximized, "Preview restores an already maximized window");
                     editor.WindowState = WindowState.Normal;
+                    var qualityModes = (ComboBox)editor.FindName("QualityPicker"); qualityModes.SelectedIndex = 2; await Task.Delay(200);
+                    ((Button)editor.FindName("PlayButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Task.Delay(250);
+                    Check(((Image)editor.FindName("ScenePreview")).Source.Height <= 720, "Automatic smooth preview limits playback composition size");
+                    ((Button)editor.FindName("PlayButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Task.Delay(250);
+                    Check(((Image)editor.FindName("ScenePreview")).Source.Height == SceneRenderer.Dimensions(p, 0).Height,
+                        "Automatic smooth preview restores full dimensions after pausing");
+                    qualityModes.SelectedIndex = 1; await Task.Delay(150);
                     await editor.PrepareAudioForTestingAsync();
                     var preparedAudio = player.Source;
                     ((Button)editor.FindName("PlayButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); await Task.Delay(100);
@@ -125,6 +132,12 @@ internal static class Program
                     editor.ShowSettings(); await Task.Delay(150);
                     var settings = app.Windows.OfType<Window>().Single(w => w.Title == "设置");
                     SaveVisual(settings, "artifacts/ui-tests/settings.png"); settings.Close();
+                    _ = app.Dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(() => {
+                        var exportDialog = app.Windows.OfType<Window>().Single(w => w.Title == "导出作品");
+                        Check(exportDialog.ActualHeight <= SystemParameters.WorkArea.Height - 16, "Export options fit the work area");
+                        SaveVisual(exportDialog, "artifacts/ui-tests/export-options.png"); exportDialog.Close();
+                    }));
+                    EditorDialogs.Export(p);
                     ThemeService.Apply("Dark"); await Task.Delay(150);
                     Check(((SolidColorBrush)editor.Background).Color == Colors.Black, "Dark mode can be restored without reopening the editor");
                 }

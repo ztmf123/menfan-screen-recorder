@@ -6,7 +6,7 @@ using System.Text.Json;
 namespace Menfan.Core;
 
 public sealed record MediaInfo(int Width, int Height, double Duration, bool HasAudio, double FrameRate = 30);
-public sealed record ExportOptions(int Height = 1080, int Fps = 30, int Quality = 20, bool AudioOnly = false);
+public sealed record ExportOptions(int Height = 1080, int Fps = 30, int Quality = 20, bool AudioOnly = false, string Encoder = "Software");
 
 public sealed class MediaTools
 {

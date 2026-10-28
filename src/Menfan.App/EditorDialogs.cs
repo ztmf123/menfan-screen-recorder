@@ -24,18 +24,19 @@ internal static class EditorDialogs
     }
     public static (string Path, ExportOptions Options)? Export(Project p)
     {
-        var window = new Window { Title = "导出作品", Width = 490, Height = 440, ResizeMode = ResizeMode.NoResize, WindowStartupLocation = WindowStartupLocation.CenterScreen,
+        var window = new Window { Title = "导出作品", Width = 490, SizeToContent = SizeToContent.Height, MaxHeight = SystemParameters.WorkArea.Height - 32, ResizeMode = ResizeMode.NoResize, WindowStartupLocation = WindowStartupLocation.CenterScreen,
             Style = (Style)System.Windows.Application.Current.FindResource(typeof(Window)) };
         var panel = new StackPanel { Margin = new Thickness(24) }; window.Content = panel;
         panel.Children.Add(new TextBlock { Text = "导出作品", FontSize = 22, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 14) });
         var audio = new CheckBox { Content = "仅音频（M4A）" }; panel.Children.Add(audio);
         var size = new ComboBox { ItemsSource = new[] { "原始画布", "1080p", "1440p", "4K", "720p" }, SelectedIndex = 1 }; panel.Children.Add(size);
         var fps = new ComboBox { ItemsSource = new[] { "30 FPS", "60 FPS" }, SelectedIndex = 0 }; panel.Children.Add(fps);
+        var encoding = new ComboBox { ItemsSource = new[] { "CPU 编码（兼容模式）", "自动显卡编码（不可用时使用 CPU）" }, SelectedIndex = 0 }; panel.Children.Add(encoding);
         var info = new TextBlock { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 6, 0, 22), }; panel.Children.Add(info);
         void Update() {
             var dimensions = SceneRenderer.Dimensions(p, new[] { 0, 1080, 1440, 2160, 720 }[size.SelectedIndex]);
             double megabytes = p.EditedDuration * (audio.IsChecked == true ? 192000 : dimensions.Width * (double)dimensions.Height * (fps.SelectedIndex == 1 ? 60 : 30) * .08 + 192000) / 8 / 1024 / 1024;
-            size.IsEnabled = fps.IsEnabled = audio.IsChecked != true;
+            size.IsEnabled = fps.IsEnabled = encoding.IsEnabled = audio.IsChecked != true;
             info.Text = $"时长 {p.EditedDuration:0.00} 秒\n画布 {dimensions.Width} × {dimensions.Height}\n预计约 {megabytes:0.0} MB（实际大小取决于画面内容）\n音频：系统 {p.SystemVolume:P0} · 麦克风 {p.MicrophoneVolume:P0}";
         }
         size.SelectionChanged += (_, _) => Update(); fps.SelectionChanged += (_, _) => Update(); audio.Checked += (_, _) => Update(); audio.Unchecked += (_, _) => Update(); Update();
@@ -45,7 +46,7 @@ internal static class EditorDialogs
             bool audioOnly = audio.IsChecked == true;
             var dialog = new SaveFileDialog { FileName = "Menfan-export", Filter = audioOnly ? "M4A 音频|*.m4a" : "MP4 视频|*.mp4" };
             if (dialog.ShowDialog() != true) return;
-            result = (dialog.FileName, new(new[] { 0, 1080, 1440, 2160, 720 }[size.SelectedIndex], fps.SelectedIndex == 1 ? 60 : 30, 20, audioOnly)); window.DialogResult = true;
+            result = (dialog.FileName, new(new[] { 0, 1080, 1440, 2160, 720 }[size.SelectedIndex], fps.SelectedIndex == 1 ? 60 : 30, 20, audioOnly, encoding.SelectedIndex == 1 ? "Auto" : "Software")); window.DialogResult = true;
         };
         window.ShowDialog(); return result;
     }

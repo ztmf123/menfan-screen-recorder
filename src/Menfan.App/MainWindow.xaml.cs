@@ -24,6 +24,8 @@ public partial class MainWindow : Window
     private bool busy, playing, preparingPlayback, initialized, exitRequested, updatingSeek, rendering, renderPending, loading;
     private double position, playbackStart;
     private readonly Stopwatch playbackClock = new();
+    private TimeSpan lastPlaybackRender = TimeSpan.MinValue;
+    private readonly DispatcherTimer previewRestoreTimer = new() { Interval = TimeSpan.FromMilliseconds(140) };
     private readonly DispatcherTimer timer = new() { Interval = TimeSpan.FromMilliseconds(33) };
     private readonly RecordingSettings recordingSettings = RecordingSettings.Load();
     private readonly DesktopVisibility desktopVisibility = new();
@@ -77,6 +79,7 @@ public partial class MainWindow : Window
         Activated += (_, _) => { if (project != null) _ = RefreshPreviewAsync(); };
         Deactivated += (_, _) => { if (playing && !KeepPreviewPlayingForDiagnostics) Pause(); };
         Closed += (_, _) => {
+            CompositionTarget.Rendering -= PlaybackRendering; previewRestoreTimer.Stop();
             CompositionTarget.Rendering -= RenderPropertyPreview;
             RestoreRecordingPanels(); desktopVisibility.Dispose(); notes?.Close(); completion?.Close();
             Native.UnregisterHotKey(handle, 1); Native.UnregisterHotKey(handle, 2); timer.Stop(); Player.Close();
@@ -86,10 +89,10 @@ public partial class MainWindow : Window
         };
         timer.Tick += async (_, _) => {
             if (recorder != null && recorder.HasExited && !busy) await StopRecordingAsync();
-            if (!playing || project == null || !IsActive && !KeepPreviewPlayingForDiagnostics) return;
-            position = playbackStart + playbackClock.Elapsed.TotalSeconds;
-            if (position >= project.EditedDuration) { position = project.EditedDuration; Pause(); }
-            UpdateTransport(); await RefreshPreviewAsync();
+        };
+        previewRestoreTimer.Tick += (_, _) => {
+            if (Mouse.LeftButton == MouseButtonState.Pressed) return;
+            previewRestoreTimer.Stop(); if (!playing) _ = RefreshPreviewAsync();
         };
         Timeline.SeekRequested += SeekTo;
         Timeline.SelectionChanged += () => { if (Timeline.SelectedEffect != null) module = "效果"; BuildProperties(); };
@@ -299,7 +302,7 @@ public partial class MainWindow : Window
         if (project == null || tools == null) return;
         renderLifetime.Cancel(); renderLifetime = new(); previewRevision++;
         previewFrames.Clear();
-        int height = QualityPicker.SelectedIndex == 1 ? project.Height : Math.Min(project.Height, 720);
+        int height = QualityPicker.SelectedIndex != 0 ? project.Height : Math.Min(project.Height, 720);
         screenReader?.Dispose(); screenReader = new(tools, project.MediaPath, (int)(project.Width * height / (double)project.Height), height, Math.Min(30, project.FrameRate));
         timer.Interval = TimeSpan.FromSeconds(1 / Math.Clamp(project.FrameRate, 1, 60));
         cameraReader?.Dispose(); cameraReader = null;
@@ -358,7 +361,9 @@ public partial class MainWindow : Window
                 BitmapSource? cameraFrame = p.Camera.Visible && cameraFrames != null && state.SourceTime >= p.CameraOffset ? await PreviewFrameAsync(cameraFrames, Math.Min(cameraDuration - .02, state.SourceTime - p.CameraOffset), ct) : null;
                 BitmapSource? backgroundFrame = backgroundFrames != null ? await PreviewFrameAsync(backgroundFrames, time % backgroundDuration, ct) : null;
                 ct.ThrowIfCancellationRequested();
-                int height = QualityPicker.SelectedIndex == 1 ? 0 : previewFullscreen ? Math.Min(p.Height, 1080) : 540;
+                int height = QualityPicker.SelectedIndex == 2
+                    ? playing || Mouse.LeftButton == MouseButtonState.Pressed ? Math.Min(p.Height, 720) : 0
+                    : QualityPicker.SelectedIndex == 1 ? 0 : previewFullscreen ? Math.Min(p.Height, 1080) : 540;
                 var dimensions = SceneRenderer.Dimensions(p, height);
                 stage.Restart();
                 var composed = live || !playing ? renderer.Compose(p, time, source, cameraFrame, backgroundFrame, dimensions.Width, dimensions.Height, freeze: false)
@@ -380,6 +385,16 @@ public partial class MainWindow : Window
         Pause(); previewRevision++; renderLifetime.Cancel(); renderLifetime = new();
         position = Math.Clamp(time, 0, project.EditedDuration); playbackStart = position;
         if (Player.Source != null) Player.Position = TimeSpan.FromSeconds(position);
+        UpdateTransport(); _ = RefreshPreviewAsync();
+    }
+    private void PlaybackRendering(object? sender, EventArgs e)
+    {
+        if (!playing || project == null || !IsActive && !KeepPreviewPlayingForDiagnostics) return;
+        var time = ((RenderingEventArgs)e).RenderingTime;
+        if (lastPlaybackRender != TimeSpan.MinValue && (time - lastPlaybackRender).TotalSeconds < 1 / Math.Clamp(project.FrameRate, 1, 60) - .002) return;
+        lastPlaybackRender = time;
+        position = playbackStart + playbackClock.Elapsed.TotalSeconds;
+        if (position >= project.EditedDuration) { position = project.EditedDuration; Pause(); }
         UpdateTransport(); _ = RefreshPreviewAsync();
     }
     private void UpdateTransport()
@@ -405,6 +420,7 @@ public partial class MainWindow : Window
             await nativeVideo.OpenAsync(project.MediaPath);
             if (!IsActive && !KeepPreviewPlayingForDiagnostics) return;
             playbackStart = position; playbackClock.Restart(); playing = true; preparingPlayback = false; previewRevision++; PlayButton.Content = "Ⅱ";
+            lastPlaybackRender = TimeSpan.MinValue; CompositionTarget.Rendering -= PlaybackRendering; CompositionTarget.Rendering += PlaybackRendering;
             if (Player.Source != null) { Player.Position = TimeSpan.FromSeconds(position); Player.Play(); }
             Status.Text = "播放预览";
             await RefreshPreviewAsync();
@@ -435,7 +451,12 @@ public partial class MainWindow : Window
         }
         finally { Player.MediaOpened -= onOpened; Player.MediaFailed -= onFailed; }
     }
-    private void Pause() { nativeVideo.Pause(); playing = false; playbackClock.Stop(); Player.Pause(); PlayButton.Content = "▶"; }
+    private void Pause()
+    {
+        CompositionTarget.Rendering -= PlaybackRendering;
+        nativeVideo.Pause(); playing = false; playbackClock.Stop(); Player.Pause(); PlayButton.Content = "▶";
+        if (QualityPicker.SelectedIndex == 2) { previewRestoreTimer.Stop(); previewRestoreTimer.Start(); }
+    }
     private void Seek_Changed(object sender, RoutedPropertyChangedEventArgs<double> e) { if (!updatingSeek) SeekTo(e.NewValue); }
     private void Player_Failed(object sender, ExceptionRoutedEventArgs e) { Status.Text = "声音预览失败：" + e.ErrorException.Message; }
     private void Save_Click(object sender, RoutedEventArgs e) => SaveProject();

@@ -12,6 +12,10 @@ namespace Menfan.App;
 internal sealed class SceneRenderer
 {
     private readonly Dictionary<string, (BitmapSource Image, long Stamp, long Length)> assets = new(StringComparer.OrdinalIgnoreCase);
+    private string? backgroundKey;
+    private DrawingImage? staticBackground;
+    private Viewport3D? retainedPlane;
+    private ImageSource? retainedPlaneImage;
     public string? FfmpegPath { get; set; }
     public static (int Width, int Height) Dimensions(Project p, int height)
     {
@@ -82,7 +86,7 @@ internal sealed class SceneRenderer
                 DrawShadow(dc, rect, style.CornerRadius * height / project.Height, style.Shadow);
                 if (Math.Abs(state.RotateX) + Math.Abs(state.RotateY) + Math.Abs(state.RotateZ) > .01)
                     dc.DrawImage(freeze ? Raster(PlaneVisual(content, state, width, height, rect), width, height)
-                        : LiveVisual(PlaneVisual(content, state, width, height, rect), width, height), new Rect(0, 0, width, height));
+                        : RetainedPlane(content, state, width, height, rect), new Rect(0, 0, width, height));
                 else dc.DrawImage(content, rect);
                 dc.Pop(); dc.Pop();
             }
@@ -242,6 +246,19 @@ internal sealed class SceneRenderer
     }
     private void DrawBackground(DrawingContext dc, Project p, BitmapSource? video, double time, double w, double h)
     {
+        if (p.Style.BackgroundKind is "MovingGrid" or "Video") { DrawBackgroundRaw(dc, p, video, time, w, h); return; }
+        var s = p.Style;
+        var stamp = s.BackgroundKind == "Image" && s.BackgroundPath != null ? Load(s.BackgroundPath).GetHashCode() : 0;
+        string key = $"{s.BackgroundKind}|{s.Background}|{s.GradientColor}|{s.BackgroundPath}|{stamp}|{w}|{h}";
+        if (backgroundKey != key || staticBackground == null)
+        {
+            var group = new DrawingGroup { ClipGeometry = new RectangleGeometry(new Rect(0, 0, w, h)) }; using (var context = group.Open()) DrawBackgroundRaw(context, p, video, time, w, h);
+            staticBackground = new DrawingImage(group); staticBackground.Freeze(); backgroundKey = key;
+        }
+        dc.DrawImage(staticBackground, new Rect(0, 0, w, h));
+    }
+    private void DrawBackgroundRaw(DrawingContext dc, Project p, BitmapSource? video, double time, double w, double h)
+    {
         var s = p.Style; var first = (Color)ColorConverter.ConvertFromString(s.Background);
         Brush brush = new SolidColorBrush(first);
         if (s.BackgroundKind == "Gradient") brush = new LinearGradientBrush(first, (Color)ColorConverter.ConvertFromString(s.GradientColor), new Point(0, 0), new Point(1, 1));
@@ -293,6 +310,27 @@ internal sealed class SceneRenderer
         viewport.Measure(new Size(w, h)); viewport.Arrange(new Rect(0, 0, w, h)); viewport.UpdateLayout();
         return viewport;
     }
+    private ImageSource RetainedPlane(ImageSource texture, SceneState state, int w, int h, Rect bounds)
+    {
+        if (retainedPlane == null || retainedPlane.Width != w || retainedPlane.Height != h)
+        {
+            retainedPlane = PlaneVisual(texture, state, w, h, bounds);
+            retainedPlaneImage = LiveVisual(retainedPlane, w, h);
+        }
+        var model = (GeometryModel3D)retainedPlane.Children.OfType<ModelVisual3D>().Single(v => v.Content is GeometryModel3D).Content;
+        ((ImageBrush)((DiffuseMaterial)model.Material).Brush).ImageSource = texture;
+        var transform = (Transform3DGroup)model.Transform;
+        var scale = (ScaleTransform3D)transform.Children[0]; scale.ScaleX = bounds.Width / w; scale.ScaleY = bounds.Height / w;
+        ((AxisAngleRotation3D)((RotateTransform3D)transform.Children[1]).Rotation).Angle = state.RotateX;
+        ((AxisAngleRotation3D)((RotateTransform3D)transform.Children[2]).Rotation).Angle = state.RotateY;
+        ((AxisAngleRotation3D)((RotateTransform3D)transform.Children[3]).Rotation).Angle = -state.RotateZ;
+        var offset = (TranslateTransform3D)transform.Children[4];
+        offset.OffsetX = (bounds.X + bounds.Width / 2 - w / 2d) / w * 2; offset.OffsetY = -(bounds.Y + bounds.Height / 2 - h / 2d) / w * 2;
+        var camera = (PerspectiveCamera)retainedPlane.Camera;
+        camera.FieldOfView = 20 + Math.Clamp(state.Perspective, .1, 1.5) * 40;
+        camera.Position = new Point3D(0, 0, 1 / Math.Tan(camera.FieldOfView / 2 * Math.PI / 180));
+        return retainedPlaneImage!;
+    }
     private static ImageSource LiveVisual(Visual visual, int width, int height)
     {
         var group = new DrawingGroup();
@@ -319,26 +357,9 @@ internal sealed class SceneRenderer
         return new DrawingImage(group);
     }
     private static BitmapSource Blur(BitmapSource bitmap, double radius)
-    {
-        var image = new Image { Source = bitmap, Width = bitmap.PixelWidth, Height = bitmap.PixelHeight, Effect = new BlurEffect { Radius = Math.Clamp(radius, 0, 100), RenderingBias = RenderingBias.Quality } };
-        image.Measure(new Size(image.Width, image.Height)); image.Arrange(new Rect(0, 0, image.Width, image.Height)); image.UpdateLayout();
-        return Raster(image, bitmap.PixelWidth, bitmap.PixelHeight);
-    }
+        => CpuBlur.Apply(bitmap, radius);
     private static BitmapSource FocusBlur(BitmapSource bitmap, double radius, double focus)
-    {
-        var visual = new DrawingVisual();
-        using (var dc = visual.RenderOpen())
-        {
-            var rect = new Rect(0, 0, bitmap.PixelWidth, bitmap.PixelHeight); dc.DrawImage(bitmap, rect);
-            var mask = new LinearGradientBrush { StartPoint = new Point(0, 0), EndPoint = new Point(0, 1) };
-            mask.GradientStops.Add(new GradientStop(Colors.Black, 0));
-            mask.GradientStops.Add(new GradientStop(Colors.Transparent, Math.Clamp(focus - .15, .01, .99)));
-            mask.GradientStops.Add(new GradientStop(Colors.Transparent, Math.Clamp(focus + .15, .01, .99)));
-            mask.GradientStops.Add(new GradientStop(Colors.Black, 1));
-            dc.PushOpacityMask(mask); dc.DrawImage(Blur(bitmap, radius * bitmap.PixelHeight / 1080d), rect); dc.Pop();
-        }
-        return Raster(visual, bitmap.PixelWidth, bitmap.PixelHeight);
-    }
+        => CpuBlur.Apply(bitmap, radius * bitmap.PixelHeight / 1080d, focus);
     private static BitmapSource Raster(ImageSource image, int width, int height)
     {
         var visual = new DrawingVisual(); using (var dc = visual.RenderOpen()) dc.DrawImage(image, new Rect(0, 0, Math.Max(1, width), Math.Max(1, height)));
